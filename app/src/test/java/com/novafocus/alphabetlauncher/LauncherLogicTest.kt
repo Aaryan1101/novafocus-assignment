@@ -1,0 +1,36 @@
+package com.novafocus.alphabetlauncher
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class LauncherLogicTest {
+    @Test fun letterCentersAndClamping() {
+        assertEquals(10f, letterCenter(0, 10f, 20f))
+        assertEquals(510f, letterCenter(25, 10f, 20f))
+        assertEquals(0, letterIndex(-10f, 10f, 20f))
+        assertEquals(25, letterIndex(999f, 10f, 20f))
+        assertEquals(12, letterIndex(250f, 10f, 20f))
+    }
+
+    @Test fun groupingAndSortingAreCaseInsensitive() {
+        assertEquals('A', groupKey("apple"))
+        assertEquals(null, groupKey("123 emoji"))
+        assertEquals(null, groupKey("🚀 app"))
+        assertEquals(listOf("alpha", "Beta", "zulu"), sortLabels(listOf("zulu", "Beta", "alpha")))
+    }
+
+    @Test fun curveIsSymmetricAndFadesWithDistance() {
+        val center = curveDisplacement(100f, 100f, 20f, 100f)
+        val near = curveDisplacement(120f, 100f, 20f, 100f)
+        val far = curveDisplacement(400f, 100f, 20f, 100f)
+        assertEquals(
+            curveDisplacement(80f, 100f, 20f, 100f),
+            curveDisplacement(120f, 100f, 20f, 100f),
+            0.01f
+        )
+        assertTrue(center < near)
+        assertTrue(near < far)
+        assertTrue(kotlin.math.abs(far) < 0.01f)
+    }
+}
