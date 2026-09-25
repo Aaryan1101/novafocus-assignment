@@ -33,4 +33,12 @@ class LauncherLogicTest {
         assertTrue(near < far)
         assertTrue(kotlin.math.abs(far) < 0.01f)
     }
+
+    @Test fun alphabetSpacingFitsShortCanvas() {
+        val spacing = safeAlphabetSpacing(100f, 20f)
+        val first = (100f - spacing * 25f) / 2f
+        assertTrue(spacing < 18f)
+        assertTrue(first - spacing >= 20f)
+        assertTrue(first + 27f * spacing <= 80f)
+    }
 }

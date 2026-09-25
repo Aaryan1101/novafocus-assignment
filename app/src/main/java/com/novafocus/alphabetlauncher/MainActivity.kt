@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,10 +30,14 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -54,9 +60,12 @@ private fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
     var active by remember { mutableStateOf(false) }
     var selected by remember { mutableIntStateOf(0) }
     var fingerY by remember { mutableFloatStateOf(0f) }
+    var releaseFingerY by remember { mutableFloatStateOf(0f) }
     var touchBounds by remember { mutableStateOf(AlphabetBounds()) }
+    val releaseProgress = remember { Animatable(0f) }
     val view = LocalView.current
     val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
     val touchZoneWidth = with(density) { 86.dp.toPx() }
     val apps = (state as? LoadState.Ready)?.apps.orEmpty()
     val groups = remember(apps) { apps.groupBy { groupKey(it.label) } }
@@ -68,6 +77,12 @@ private fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             if (!touchBounds.contains(down.position, size.width.toFloat(), touchZoneWidth)) return@awaitEachGesture
             down.consume()
             active = true
+            scope.launch {
+                releaseProgress.stop()
+                releaseProgress.snapTo(1f)
+            }
+            fingerY = down.position.y.coerceIn(touchBounds.top, touchBounds.bottom)
+            selected = letterIndex(fingerY, touchBounds.firstCenter, touchBounds.spacing)
             var last = -1
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Main)
@@ -83,7 +98,9 @@ private fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
                 }
                 change.consume()
             }
+            releaseFingerY = fingerY
             active = false
+            scope.launch { releaseProgress.animateTo(0f, spring(dampingRatio = 0.7f, stiffness = 500f)) }
         }
     }
 
@@ -97,7 +114,8 @@ private fun LauncherScreen(viewModel: LauncherViewModel = viewModel()) {
             active = active,
             selected = selected,
             fingerY = fingerY,
-            release = if (active) 1f else 0f,
+            releaseFingerY = releaseFingerY,
+            releaseProgress = releaseProgress.value,
             onBounds = { touchBounds = it },
             modifier = Modifier.align(Alignment.CenterEnd)
         )
@@ -153,36 +171,54 @@ private data class AlphabetBounds(val top: Float = 0f, val bottom: Float = 1f, v
         position.x >= screenWidth - zoneWidth && position.y in top..bottom
 }
 
-@Composable private fun AlphabetBar(active: Boolean, selected: Int, fingerY: Float, release: Float, onBounds: (AlphabetBounds) -> Unit, modifier: Modifier) {
+@Composable private fun AlphabetBar(active: Boolean, selected: Int, fingerY: Float, releaseFingerY: Float, releaseProgress: Float, onBounds: (AlphabetBounds) -> Unit, modifier: Modifier) {
     BoxWithConstraints(modifier.fillMaxHeight().width(78.dp).padding(end = 12.dp), contentAlignment = Alignment.CenterEnd) {
         val density = LocalDensity.current
         val heightPx = with(density) { maxHeight.toPx() }
-        val spacing = (heightPx / 27f).coerceAtLeast(with(density) { 18.dp.toPx() })
+        val textPaint = remember(density) { android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = with(density) { 14.sp.toPx() }
+            textAlign = android.graphics.Paint.Align.RIGHT
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        } }
+        val starPaint = remember(density) { android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = with(density) { 20.sp.toPx() }
+            textAlign = android.graphics.Paint.Align.RIGHT
+        } }
+        val starMetrics = starPaint.fontMetrics
+        val markerExtent = maxOf((starMetrics.descent - starMetrics.ascent) / 2f, with(density) { 3.dp.toPx() })
+        val spacing = safeAlphabetSpacing(heightPx, markerExtent)
         val first = (heightPx - spacing * 25f) / 2f
         LaunchedEffect(heightPx, spacing, first) { onBounds(AlphabetBounds(first - spacing / 2f, first + spacing * 25f + spacing / 2f, first, spacing)) }
-        Canvas(Modifier.fillMaxSize()) {
+        val dotPaint = remember { android.graphics.Paint().apply { color = android.graphics.Color.WHITE } }
+        Canvas(Modifier.fillMaxSize().semantics {
+            contentDescription = "Alphabet navigation"
+            stateDescription = "Selected ${selectedIndexLetter(selected)}"
+        }) {
             val baseX = size.width - with(density) { 4.dp.toPx() }
+            val displacementY = if (active) fingerY else releaseFingerY
+            val displacementProgress = if (active) 1f else releaseProgress
+            val letterBaselineOffset = -(textPaint.fontMetrics.ascent + textPaint.fontMetrics.descent) / 2f
             for (i in 0 until 26) {
                 val y = first + i * spacing
-                val pull = if (active) curveDisplacement(y, fingerY, spacing, with(density) { MaxPullDp.dp.toPx() }) else 0f
-                val x = baseX + pull * release
-                drawContext.canvas.nativeCanvas.drawText(('A'.code + i).toChar().toString(), x, y + with(density) { 5.dp.toPx() }, android.graphics.Paint().apply {
-                    color = android.graphics.Color.WHITE
-                    textSize = with(density) { 14.sp.toPx() }
-                    textAlign = android.graphics.Paint.Align.RIGHT
-                    typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                })
+                val pull = curveDisplacement(y, displacementY, spacing, with(density) { MaxPullDp.dp.toPx() })
+                val x = baseX + pull * displacementProgress
+                drawContext.canvas.nativeCanvas.drawText(('A'.code + i).toChar().toString(), x, y + letterBaselineOffset, textPaint)
             }
-            drawContext.canvas.nativeCanvas.drawText("☆", baseX, first - spacing + with(density) { 5.dp.toPx() }, android.graphics.Paint().apply { color = android.graphics.Color.WHITE; textSize = with(density) { 20.sp.toPx() }; textAlign = android.graphics.Paint.Align.RIGHT })
-            drawContext.canvas.nativeCanvas.drawCircle(baseX - with(density) { 4.dp.toPx() }, first + 26 * spacing, with(density) { 3.dp.toPx() }, android.graphics.Paint().apply { color = android.graphics.Color.WHITE })
+            val starCenter = first - spacing
+            drawContext.canvas.nativeCanvas.drawText("☆", baseX, starCenter - (starPaint.fontMetrics.ascent + starPaint.fontMetrics.descent) / 2f, starPaint)
+            drawContext.canvas.nativeCanvas.drawCircle(baseX - with(density) { 4.dp.toPx() }, first + 26 * spacing + spacing, with(density) { 3.dp.toPx() }, dotPaint)
         }
     }
 }
 
 @Composable private fun Bubble(selected: Int, y: Float, bounds: AlphabetBounds, density: Density) {
     val bubbleY = y.coerceIn(bounds.top + dpPx(32, density), bounds.bottom - dpPx(32, density))
-    Box(Modifier.offset(x = (-88).dp, y = with(density) { bubbleY.toDp() - 32.dp }).size(64.dp).clip(CircleShape).background(Color(0xCC333333)), Alignment.Center) {
-        Text(selectedIndexLetter(selected).toString(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Medium)
+    Box(Modifier.fillMaxSize()) {
+        Box(Modifier.align(Alignment.TopEnd).offset(x = (-88).dp, y = with(density) { bubbleY.toDp() - 32.dp }).size(64.dp).clip(CircleShape).background(Color(0xCC333333)), Alignment.Center) {
+            Text(selectedIndexLetter(selected).toString(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Medium)
+        }
     }
 }
 

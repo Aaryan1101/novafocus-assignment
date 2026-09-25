@@ -4,6 +4,9 @@ import kotlin.math.exp
 
 const val AlphabetSize = 26
 
+fun safeAlphabetSpacing(height: Float, markerExtent: Float): Float =
+    ((height - markerExtent * 2f) / 29f).coerceAtLeast(0f)
+
 fun groupKey(label: String): Char? = label.firstOrNull()?.uppercaseChar()
     ?.takeIf { it in 'A'..'Z' }
     ?.takeIf { it in 'A'..'Z' }
