@@ -23,10 +23,6 @@ Alphabet Launcher is a Kotlin and Jetpack Compose launcher assignment. It loads 
 - Draw-phase gesture tracking and lightly overshooting spring motion
 - Loading and retryable error states
 
-## Screenshots
-
-Submission screenshots and recordings are not bundled. The ignored `review-artifacts/` directory is reserved for final evidence captured from the test phone.
-
 ## Requirements
 
 - Android Studio with SDK 36 or a compatible command-line Android build environment
