@@ -11,6 +11,10 @@ class LauncherLogicTest {
         assertEquals(0, letterIndex(-10f, 10f, 20f))
         assertEquals(25, letterIndex(999f, 10f, 20f))
         assertEquals(12, letterIndex(250f, 10f, 20f))
+        assertEquals(0, letterIndex(19.9f, 10f, 20f))
+        assertEquals(1, letterIndex(20.1f, 10f, 20f))
+        assertEquals(-1, sidebarIndex(-10f, 10f, 20f))
+        assertEquals(0, sidebarIndex(0.1f, 10f, 20f))
     }
 
     @Test fun groupingAndSortingAreCaseInsensitive() {
@@ -39,6 +43,10 @@ class LauncherLogicTest {
         val first = (100f - spacing * 25f) / 2f
         assertTrue(spacing < 18f)
         assertTrue(first - spacing >= 20f)
-        assertTrue(first + 27f * spacing <= 80f)
+        assertTrue(first + 26f * spacing <= 80f)
+    }
+
+    @Test fun alphabetSpacingIsCappedOnTallCanvas() {
+        assertEquals(32f, safeAlphabetSpacing(1600f, 20f, 32f))
     }
 }
