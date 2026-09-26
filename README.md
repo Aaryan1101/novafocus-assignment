@@ -1,6 +1,6 @@
 # Alphabet Launcher
 
-Alphabet Launcher is a Kotlin and Jetpack Compose launcher-style assignment. It loads the device's real launcher activities, presents installed apps as a quiet black home screen, and reveals letter-filtered results while the user drags across the right-side alphabet.
+Alphabet Launcher is a Kotlin and Jetpack Compose launcher assignment. It loads the device's real launcher activities, presents installed apps on a quiet system-themed home screen, and reveals letter-filtered results while the user drags across the right-side alphabet.
 
 ## Features
 
@@ -8,17 +8,24 @@ Alphabet Launcher is a Kotlin and Jetpack Compose launcher-style assignment. It 
 - Cached, background application loading with bitmap icons
 - Case-insensitive label sorting and A-Z grouping
 - Exact launcher-component launching with failure feedback
-- Responsive black home screen with live clock, date, and installed-app shortcuts
+- Responsive home screen with live clock, date, and installed-app shortcuts
 - Continuous Gaussian alphabet curve driven by finger position
-- Selected-letter bubble, empty-letter state, and scrollable result list
-- One haptic tick per selected-letter change
+- Finger-tracked letter bubble, dimmed empty letters, and a clear empty-letter state
+- Scrollable letter results so every matching installed app remains reachable
+- Haptic feedback when the selected letter changes
+- Spring release that straightens the sidebar and restores the clock and favourites
+- Finger-tracked swipe-up search with automatic keyboard focus
+- Fluid spring reveal, cancellation, back retreat, and bidirectional empty-search swipe return
+- Persistent long-press favourites with launcher-tracked recent-app fallback
+- Optional Android home-screen registration through `CATEGORY_HOME`
+- Automatic app-list refresh after package additions, removals, changes, or replacements
+- System light and dark theme support, including matching system-bar appearance
+- Draw-phase gesture tracking and lightly overshooting spring motion
 - Loading and retryable error states
-
-Search, editable persistent favourites, package-change refresh, theme switching, and default-home registration are intentionally not included in this minimal verified build.
 
 ## Screenshots
 
-Screenshots and recordings were not produced in this environment because no Android device or emulator was verified. The ignored `review-artifacts/` directory is reserved for them.
+Submission screenshots and recordings are not bundled. The ignored `review-artifacts/` directory is reserved for final evidence captured from the test phone.
 
 ## Requirements
 
@@ -33,7 +40,10 @@ From the project directory:
 ```bash
 ./gradlew testDebugUnitTest assembleDebug lintDebug
 ./gradlew compileReleaseKotlin
+./gradlew assembleBenchmark # signed, non-debuggable local performance build
 ```
+
+The `benchmark` build type uses release runtime behavior with local debug signing so frame performance can be measured on a phone without creating production signing credentials. It is a local validation artifact, not a production release.
 
 The local environment used for verification had two conflicting SDK environment variables. Commands were run with `ANDROID_SDK_ROOT` unset so `ANDROID_HOME` selected `/home/potato/Android/Sdk`.
 
@@ -47,13 +57,21 @@ Multiple launcher activities are retained when their `ComponentName` differs. Ex
 
 The manifest declares a `<queries>` entry for `ACTION_MAIN` plus `CATEGORY_LAUNCHER`. No `QUERY_ALL_PACKAGES` permission is used.
 
+## Favourites and recent apps
+
+Long-press an app on the home screen, in a letter result, or in search to add or remove it from Favourites. Favourite component names are stored locally in `SharedPreferences` and survive restarts. When no explicit favourites exist, the home prioritizes apps most recently launched through Alphabet Launcher and fills remaining positions with stable alphabetic suggestions. It intentionally does not request Android Usage Access or inspect activity from other launchers.
+
 ## Curve algorithm
 
-Each letter keeps its normal vertical center. During a drag, its horizontal displacement is the negative of a Gaussian bell curve evaluated at its distance from the continuous finger Y position. The spacing-scaled width makes the selected letter move most, nearby letters move progressively less, and distant letters return close to their resting X coordinate.
+Each fixed-width sidebar glyph keeps its normal vertical center. During a drag, its horizontal displacement is the negative of a Gaussian bell curve evaluated at its distance from the continuous finger Y position. The spacing-scaled width makes the selected glyph move most, nearby glyphs move progressively less, and distant glyphs return close to their resting X coordinate. On release, the content returns to the clock and favourites while the curve follows a lightly overshooting spring back to rest.
 
 ## Performance and caching
 
-Package discovery, label sorting, grouping, and icon conversion happen once during repository loading, outside gesture callbacks. Dragging only maps Y to an index and evaluates 26 inexpensive Gaussian values. There is no package query, disk access, full-list filtering, or per-move coroutine in the drag path.
+Package discovery, label sorting, grouping, Compose image conversion, and size-capped icon conversion happen during repository loading, outside gesture callbacks; discovery runs again only after an explicit retry or package-change broadcast. Continuous finger and spring state is read only in Canvas or graphics-layer phases, so raw pointer samples do not recompose or re-layout either screen. Filtered results use one scrollable Canvas rather than rebuilding a lazy row layout at each letter boundary. Search is precomposed and revealed through render transforms. There is no package query, disk access, full-list filtering, or per-move coroutine in either drag path.
+
+On the documented Samsung test phone, a warmed four-swipe trace of the non-debuggable benchmark build rendered 488 frames with 1.64% deadline misses, a 6 ms median, 11 ms p90, and 14 ms p95 at a 90 Hz display mode. These measurements describe the local test device rather than a universal guarantee.
+
+The final bonus-complete build was also exercised on an older Samsung SM-T385 running API 28. Its warmed synthetic six-swipe trace rendered 356 frames with 16 frame-deadline misses, a 12 ms median, 23 ms p90, and 42 ms p95. ADB-generated input produced high input-latency counters on that device, while slow bitmap uploads and slow draw-command counts remained zero.
 
 ## Dependencies
 
@@ -79,8 +97,8 @@ Test dependencies:
 
 ## Testing and limitations
 
-Pure tests cover letter centers, clamping, grouping edge cases, case-insensitive sorting, curve symmetry, falloff, and distant-letter behavior. No real device, emulator, screenshot, recording, performance profiler, package install/removal flow, system navigation mode, font-scale matrix, or default-home flow was verified here.
+Pure tests cover sidebar selection and clamping, letter centers, grouping edge cases, case-insensitive sorting, curve symmetry, falloff, and distant-letter behavior. Samsung SM-M136B and SM-T385 devices were used for installation, interaction checks, and frame timing. HOME-role discovery, light and dark theme rendering, release-to-home, search, favourite-dialog behavior, haptics, and real app launching were verified on the API 28 tablet. Package install/removal refresh, multi-touch scrolling while holding the sidebar, wider device/font-scale matrices, and the final submission recording remain outside the physically verified scope.
 
 ## AI disclosure
 
-AI assistance was used for planning, implementation review, debugging suggestions, and documentation refinement. The application architecture, curve behavior, testing, and final implementation were reviewed and understood by the developer.
+AI assistance was used for planning, implementation review, debugging, documentation refinement, and adapting the supplied calligraphic reference into the launcher foreground artwork. The application architecture, curve behavior, testing, and final implementation were reviewed and understood by the developer.
