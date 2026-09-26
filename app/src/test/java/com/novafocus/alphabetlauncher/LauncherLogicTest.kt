@@ -20,7 +20,7 @@ class LauncherLogicTest {
     @Test fun groupingAndSortingAreCaseInsensitive() {
         assertEquals('A', groupKey("apple"))
         assertEquals(null, groupKey("123 emoji"))
-        assertEquals(null, groupKey("🚀 app"))
+        assertEquals(null, groupKey("# app"))
         assertEquals(listOf("alpha", "Beta", "zulu"), sortLabels(listOf("zulu", "Beta", "alpha")))
     }
 
